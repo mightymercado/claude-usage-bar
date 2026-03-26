@@ -21,7 +21,7 @@ struct ClaudeUsageBarApp: App {
 // MARK: - Two-Row Compact Menu Bar Icon
 
 private let iconHeight: CGFloat = 20
-private let barW: CGFloat = 14
+private let barW: CGFloat = 30
 private let barH: CGFloat = 7
 private let rowGap: CGFloat = 2
 private let labelBarGap: CGFloat = 2
