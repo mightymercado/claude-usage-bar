@@ -20,7 +20,7 @@ class UsageService: ObservableObject {
     private var refreshTask: Task<Bool, Never>?
 
     static let defaultPollingMinutes = 30
-    static let pollingOptions = [5, 15, 30, 60]
+    static let pollingOptions = [1, 5, 15, 30, 60]
     private static let maxBackoffInterval: TimeInterval = 3600
 
     private static let usageEndpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
