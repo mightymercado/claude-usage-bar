@@ -119,7 +119,10 @@ private func drawRow(y: CGFloat, pctW: CGFloat, pctLabel: NSAttributedString, pc
     // Bar track
     let barRect = NSRect(x: x, y: y, width: barW, height: barH)
     let trackPath = NSBezierPath(roundedRect: barRect, xRadius: barH / 2, yRadius: barH / 2)
-    NSColor.labelColor.withAlphaComponent(0.1).setFill()
+    let trackColor = willExceed
+        ? NSColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 0.15)
+        : NSColor.labelColor.withAlphaComponent(0.1)
+    trackColor.setFill()
     trackPath.fill()
 
     // Bar fill with gradient
@@ -131,20 +134,14 @@ private func drawRow(y: CGFloat, pctW: CGFloat, pctLabel: NSAttributedString, pc
         let clipPath = NSBezierPath(roundedRect: fillRect, xRadius: barH / 2, yRadius: barH / 2)
         clipPath.addClip()
 
-        let (startColor, endColor) = gradientColors(for: pct)
+        let (startColor, endColor) = willExceed
+            ? (NSColor(red: 0.95, green: 0.25, blue: 0.2, alpha: 1),
+               NSColor(red: 0.85, green: 0.15, blue: 0.25, alpha: 1))
+            : gradientColors(for: pct)
         let gradient = NSGradient(starting: startColor, ending: endColor)!
         gradient.draw(in: fillRect, angle: 0)
 
         NSGraphicsContext.current?.restoreGraphicsState()
-    }
-
-    // Red outline when on pace to exceed before reset
-    if willExceed {
-        let outlineRect = barRect.insetBy(dx: -0.5, dy: -0.5)
-        let outlinePath = NSBezierPath(roundedRect: outlineRect, xRadius: (barH + 1) / 2, yRadius: (barH + 1) / 2)
-        NSColor(red: 0.95, green: 0.2, blue: 0.2, alpha: 0.9).setStroke()
-        outlinePath.lineWidth = 1
-        outlinePath.stroke()
     }
 
     x += barW + barPctGap
