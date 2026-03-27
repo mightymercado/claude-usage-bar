@@ -48,7 +48,7 @@ private func renderMenuBarIcon(pct5h: Double, pct7d: Double, isPeakHours: Bool, 
     let pctW = max(pct5Str.size().width, pct7Str.size().width)
 
     // Peak label
-    let peakFont = NSFont.monospacedDigitSystemFont(ofSize: 6, weight: .bold)
+    let peakFont = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .bold)
     let peakColor = isPeakHours
         ? NSColor(red: 1.0, green: 0.55, blue: 0.0, alpha: 1)
         : NSColor.labelColor.withAlphaComponent(0.2)
