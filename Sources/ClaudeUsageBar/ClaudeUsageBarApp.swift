@@ -9,7 +9,7 @@ struct ClaudeUsageBarApp: App {
             PopoverView(service: service)
         } label: {
             Image(nsImage: service.isAuthenticated
-                ? renderMenuBarIcon(pct5h: service.pct5h, pct7d: service.pct7d, isPeakHours: service.isPeakHours)
+                ? renderMenuBarIcon(pct5h: service.pct5h, pct7d: service.pct7d, isPeakHours: service.isPeakHours, willExceed5h: service.willExceed5h, willExceed7d: service.willExceed7d)
                 : renderMenuBarIconUnauthenticated()
             )
             .task { service.startPolling() }
@@ -27,7 +27,7 @@ private let rowGap: CGFloat = 2
 private let labelBarGap: CGFloat = 2
 private let barPctGap: CGFloat = 1.5
 
-private func renderMenuBarIcon(pct5h: Double, pct7d: Double, isPeakHours: Bool) -> NSImage {
+private func renderMenuBarIcon(pct5h: Double, pct7d: Double, isPeakHours: Bool, willExceed5h: Bool = false, willExceed7d: Bool = false) -> NSImage {
     let labelFont = NSFont.monospacedDigitSystemFont(ofSize: 7.5, weight: .semibold)
     let pctFont = NSFont.monospacedDigitSystemFont(ofSize: 7, weight: .medium)
     let labelAttrs: [NSAttributedString.Key: Any] = [
@@ -46,9 +46,19 @@ private func renderMenuBarIcon(pct5h: Double, pct7d: Double, isPeakHours: Bool) 
     ])
 
     let pctW = max(pct5Str.size().width, pct7Str.size().width)
-    let dotSize: CGFloat = 4
-    let dotGap: CGFloat = 3
-    let totalWidth = barW + barPctGap + pctW + dotGap + dotSize
+
+    // Peak label
+    let peakFont = NSFont.monospacedDigitSystemFont(ofSize: 6, weight: .bold)
+    let peakColor = isPeakHours
+        ? NSColor(red: 1.0, green: 0.55, blue: 0.0, alpha: 1)
+        : NSColor.labelColor.withAlphaComponent(0.2)
+    let peakStr = NSAttributedString(string: "PEAK", attributes: [
+        .font: peakFont,
+        .foregroundColor: peakColor,
+    ])
+    let peakGap: CGFloat = 3
+    let peakW = peakStr.size().width
+    let totalWidth = barW + barPctGap + pctW + peakGap + peakW
 
     let size = NSSize(width: ceil(totalWidth), height: iconHeight)
 
@@ -56,19 +66,14 @@ private func renderMenuBarIcon(pct5h: Double, pct7d: Double, isPeakHours: Bool) 
         let topRowY = (iconHeight / 2) + (rowGap / 2)
         let botRowY = (iconHeight / 2) - rowGap / 2 - barH
 
-        drawRow(y: topRowY, pctW: pctW, pctLabel: pct5Str, pct: pct5h)
-        drawRow(y: botRowY, pctW: pctW, pctLabel: pct7Str, pct: pct7d)
+        drawRow(y: topRowY, pctW: pctW, pctLabel: pct5Str, pct: pct5h, willExceed: willExceed5h)
+        drawRow(y: botRowY, pctW: pctW, pctLabel: pct7Str, pct: pct7d, willExceed: willExceed7d)
 
-        // Peak hours indicator dot
-        let dotX = barW + barPctGap + pctW + dotGap
-        let dotY = (iconHeight - dotSize) / 2
-        let dotRect = NSRect(x: dotX, y: dotY, width: dotSize, height: dotSize)
-        let dotPath = NSBezierPath(ovalIn: dotRect)
-        let dotColor = isPeakHours
-            ? NSColor(red: 1.0, green: 0.6, blue: 0.0, alpha: 1)
-            : NSColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1)
-        dotColor.setFill()
-        dotPath.fill()
+        // Peak hours label
+        let peakSize = peakStr.size()
+        let peakX = barW + barPctGap + pctW + peakGap
+        let peakY = (iconHeight - peakSize.height) / 2
+        peakStr.draw(at: NSPoint(x: peakX, y: peakY))
 
         return true
     }
@@ -107,7 +112,7 @@ private func renderMenuBarIconUnauthenticated() -> NSImage {
     return image
 }
 
-private func drawRow(y: CGFloat, pctW: CGFloat, pctLabel: NSAttributedString, pct: Double) {
+private func drawRow(y: CGFloat, pctW: CGFloat, pctLabel: NSAttributedString, pct: Double, willExceed: Bool = false) {
     var x: CGFloat = 0
     let cy = y + barH / 2
 
@@ -132,6 +137,16 @@ private func drawRow(y: CGFloat, pctW: CGFloat, pctLabel: NSAttributedString, pc
 
         NSGraphicsContext.current?.restoreGraphicsState()
     }
+
+    // Red outline when on pace to exceed before reset
+    if willExceed {
+        let outlineRect = barRect.insetBy(dx: -0.5, dy: -0.5)
+        let outlinePath = NSBezierPath(roundedRect: outlineRect, xRadius: (barH + 1) / 2, yRadius: (barH + 1) / 2)
+        NSColor(red: 0.95, green: 0.2, blue: 0.2, alpha: 0.9).setStroke()
+        outlinePath.lineWidth = 1
+        outlinePath.stroke()
+    }
+
     x += barW + barPctGap
 
     // Percentage

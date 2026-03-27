@@ -300,22 +300,22 @@ class UsageService: ObservableObject {
             previousSnapshot = UsageSnapshot(date: now, pct5h: cur5h, pct7d: cur7d)
         }
 
-        // 5-hour bucket — rate of change between last 2 polls
-        if let prev = previousSnapshot {
-            let elapsed = now.timeIntervalSince(prev.date)
-            if elapsed > 10 {
-                let rate5h = (cur5h - prev.pct5h) / elapsed
-                if rate5h > 0 && cur5h < 1.0 {
-                    let seconds5h = (1.0 - cur5h) / rate5h
-                    eta5hHours = seconds5h / 3600.0
-                    willExceed5h = reset5h.map { seconds5h < $0.timeIntervalSince(now) } ?? false
-                } else if cur5h >= 1.0 {
-                    eta5hHours = 0
-                    willExceed5h = true
-                } else {
-                    eta5hHours = nil
-                    willExceed5h = false
-                }
+        // 5-hour bucket — based on consumed % vs elapsed time in window
+        if cur5h >= 1.0 {
+            eta5hHours = 0
+            willExceed5h = true
+        } else if let reset = reset5h, cur5h > 0 {
+            let secondsRemaining = reset.timeIntervalSince(now)
+            let totalWindow: TimeInterval = 5 * 3600
+            let hoursElapsed = (totalWindow - secondsRemaining) / 3600
+            if hoursElapsed > 0.01 {
+                let hourlyRate = cur5h / hoursElapsed
+                let hoursToFull = (1.0 - cur5h) / hourlyRate
+                eta5hHours = hoursToFull
+                willExceed5h = hoursToFull * 3600 < secondsRemaining
+            } else {
+                eta5hHours = nil
+                willExceed5h = false
             }
         } else {
             eta5hHours = nil
