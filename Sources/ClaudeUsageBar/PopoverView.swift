@@ -16,6 +16,7 @@ struct PopoverView: View {
         }
         .padding(16)
         .frame(width: 320)
+        .background(.ultraThinMaterial)
     }
 
     // MARK: - Auth View
