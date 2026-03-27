@@ -300,40 +300,45 @@ class UsageService: ObservableObject {
             previousSnapshot = UsageSnapshot(date: now, pct5h: cur5h, pct7d: cur7d)
         }
 
-        guard let prev = previousSnapshot else {
-            eta5hHours = nil
-            eta7dHours = nil
-            willExceed5h = false
-            willExceed7d = false
-            return
-        }
-
-        let elapsed = now.timeIntervalSince(prev.date)
-        guard elapsed > 10 else { return }
-
-        // 5-hour bucket
-        let rate5h = (cur5h - prev.pct5h) / elapsed
-        if rate5h > 0 && cur5h < 1.0 {
-            let seconds5h = (1.0 - cur5h) / rate5h
-            eta5hHours = seconds5h / 3600.0
-            willExceed5h = reset5h.map { seconds5h < $0.timeIntervalSince(now) } ?? false
-        } else if cur5h >= 1.0 {
-            eta5hHours = 0
-            willExceed5h = true
+        // 5-hour bucket — rate of change between last 2 polls
+        if let prev = previousSnapshot {
+            let elapsed = now.timeIntervalSince(prev.date)
+            if elapsed > 10 {
+                let rate5h = (cur5h - prev.pct5h) / elapsed
+                if rate5h > 0 && cur5h < 1.0 {
+                    let seconds5h = (1.0 - cur5h) / rate5h
+                    eta5hHours = seconds5h / 3600.0
+                    willExceed5h = reset5h.map { seconds5h < $0.timeIntervalSince(now) } ?? false
+                } else if cur5h >= 1.0 {
+                    eta5hHours = 0
+                    willExceed5h = true
+                } else {
+                    eta5hHours = nil
+                    willExceed5h = false
+                }
+            }
         } else {
             eta5hHours = nil
             willExceed5h = false
         }
 
-        // 7-day bucket
-        let rate7d = (cur7d - prev.pct7d) / elapsed
-        if rate7d > 0 && cur7d < 1.0 {
-            let seconds7d = (1.0 - cur7d) / rate7d
-            eta7dHours = seconds7d / 3600.0
-            willExceed7d = reset7d.map { seconds7d < $0.timeIntervalSince(now) } ?? false
-        } else if cur7d >= 1.0 {
+        // 7-day bucket — based on consumed % vs elapsed days in window
+        if cur7d >= 1.0 {
             eta7dHours = 0
             willExceed7d = true
+        } else if let reset = reset7d, cur7d > 0 {
+            let secondsRemaining = reset.timeIntervalSince(now)
+            let totalWindow: TimeInterval = 7 * 24 * 3600
+            let daysElapsed = (totalWindow - secondsRemaining) / 86400
+            if daysElapsed > 0.01 {
+                let dailyRate = cur7d / daysElapsed
+                let daysToFull = (1.0 - cur7d) / dailyRate
+                eta7dHours = daysToFull * 24
+                willExceed7d = daysToFull * 86400 < secondsRemaining
+            } else {
+                eta7dHours = nil
+                willExceed7d = false
+            }
         } else {
             eta7dHours = nil
             willExceed7d = false
