@@ -12,12 +12,22 @@ class UsageService: ObservableObject {
     @Published var isAwaitingCode = false
     @Published private(set) var accountEmail: String?
     @Published private(set) var pollingMinutes: Int
+    @Published private(set) var isPeakHours: Bool = false
+    @Published private(set) var eta5hHours: Double?
+    @Published private(set) var eta7dHours: Double?
+    @Published private(set) var willExceed5h: Bool = false
+    @Published private(set) var willExceed7d: Bool = false
+    @Published private(set) var usageHistory: [UsageSnapshot] = []
 
     private var timer: Timer?
     private let session: URLSession
     private let credentialsStore: StoredCredentialsStore
     private var currentInterval: TimeInterval
     private var refreshTask: Task<Bool, Never>?
+    private var previousSnapshot: UsageSnapshot?
+    private static let historyFileURL: URL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".config/claude-usage-bar/history.json")
+    private static let historyMaxAge: TimeInterval = 6 * 3600
 
     static let defaultPollingMinutes = 30
     static let pollingOptions = [1, 5, 15, 30, 60]
@@ -51,6 +61,8 @@ class UsageService: ObservableObject {
         self.pollingMinutes = minutes
         self.currentInterval = TimeInterval(minutes * 60)
         self.isAuthenticated = credentialsStore.load() != nil
+        updatePeakHours()
+        usageHistory = Self.loadHistory()
     }
 
     // MARK: - Polling
@@ -237,6 +249,9 @@ class UsageService: ObservableObject {
             usage = decoded.reconciled(with: usage)
             lastError = nil
             lastUpdated = Date()
+            updateForecast()
+            updatePeakHours()
+            recordHistory()
             if currentInterval != baseInterval {
                 currentInterval = baseInterval
                 scheduleTimer()
@@ -271,6 +286,92 @@ class UsageService: ObservableObject {
         if let email = account["emailAddress"] as? String, !email.isEmpty { return email }
         if let name = account["displayName"] as? String, !name.isEmpty { return name }
         return nil
+    }
+
+    // MARK: - Forecast & Peak Hours
+
+    private func updateForecast() {
+        let now = Date()
+        let cur5h = pct5h
+        let cur7d = pct7d
+
+        defer {
+            previousSnapshot = UsageSnapshot(date: now, pct5h: cur5h, pct7d: cur7d)
+        }
+
+        guard let prev = previousSnapshot else {
+            eta5hHours = nil
+            eta7dHours = nil
+            willExceed5h = false
+            willExceed7d = false
+            return
+        }
+
+        let elapsed = now.timeIntervalSince(prev.date)
+        guard elapsed > 10 else { return }
+
+        // 5-hour bucket
+        let rate5h = (cur5h - prev.pct5h) / elapsed
+        if rate5h > 0 && cur5h < 1.0 {
+            let seconds5h = (1.0 - cur5h) / rate5h
+            eta5hHours = seconds5h / 3600.0
+            willExceed5h = reset5h.map { seconds5h < $0.timeIntervalSince(now) } ?? false
+        } else if cur5h >= 1.0 {
+            eta5hHours = 0
+            willExceed5h = true
+        } else {
+            eta5hHours = nil
+            willExceed5h = false
+        }
+
+        // 7-day bucket
+        let rate7d = (cur7d - prev.pct7d) / elapsed
+        if rate7d > 0 && cur7d < 1.0 {
+            let seconds7d = (1.0 - cur7d) / rate7d
+            eta7dHours = seconds7d / 3600.0
+            willExceed7d = reset7d.map { seconds7d < $0.timeIntervalSince(now) } ?? false
+        } else if cur7d >= 1.0 {
+            eta7dHours = 0
+            willExceed7d = true
+        } else {
+            eta7dHours = nil
+            willExceed7d = false
+        }
+    }
+
+    private func updatePeakHours() {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let components = calendar.dateComponents([.hour, .weekday], from: Date())
+        let hour = components.hour ?? 0
+        let weekday = components.weekday ?? 1
+        isPeakHours = (2...6).contains(weekday) && (7..<17).contains(hour)
+    }
+
+    // MARK: - Usage History
+
+    private func recordHistory() {
+        let entry = UsageSnapshot(date: Date(), pct5h: pct5h, pct7d: pct7d)
+        usageHistory.append(entry)
+        let cutoff = Date().addingTimeInterval(-Self.historyMaxAge)
+        usageHistory = usageHistory.filter { $0.date > cutoff }
+        Self.persistHistory(usageHistory)
+    }
+
+    private static func persistHistory(_ entries: [UsageSnapshot]) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(entries) else { return }
+        try? data.write(to: historyFileURL, options: .atomic)
+    }
+
+    private static func loadHistory() -> [UsageSnapshot] {
+        guard let data = try? Data(contentsOf: historyFileURL) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let entries = try? decoder.decode([UsageSnapshot].self, from: data) else { return [] }
+        let cutoff = Date().addingTimeInterval(-historyMaxAge)
+        return entries.filter { $0.date > cutoff }
     }
 
     // MARK: - Authorized Requests

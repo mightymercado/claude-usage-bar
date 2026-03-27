@@ -119,3 +119,9 @@ struct ExtraUsage: Codable {
         currencyFormatter.string(from: NSNumber(value: amount)) ?? String(format: "$%.2f", amount)
     }
 }
+
+struct UsageSnapshot: Codable {
+    let date: Date
+    let pct5h: Double
+    let pct7d: Double
+}

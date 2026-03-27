@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct PopoverView: View {
     @ObservedObject var service: UsageService
@@ -109,6 +110,15 @@ struct PopoverView: View {
             HStack {
                 Text("Claude Usage")
                     .font(.headline)
+
+                Text(service.isPeakHours ? "PEAK" : "OFF-PEAK")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(service.isPeakHours ? Color.orange.opacity(0.2) : Color.blue.opacity(0.15))
+                    .foregroundStyle(service.isPeakHours ? .orange : .blue)
+                    .clipShape(Capsule())
+
                 Spacer()
                 if let email = service.accountEmail {
                     Text(email)
@@ -122,12 +132,18 @@ struct PopoverView: View {
 
             // 5-hour bucket
             if let bucket = service.usage?.fiveHour {
-                UsageBucketRow(label: "5-Hour", bucket: bucket)
+                UsageBucketRow(label: "5-Hour", bucket: bucket, etaHours: service.eta5hHours, willExceed: service.willExceed5h)
             }
 
             // 7-day bucket
             if let bucket = service.usage?.sevenDay {
-                UsageBucketRow(label: "7-Day", bucket: bucket)
+                UsageBucketRow(label: "7-Day", bucket: bucket, etaHours: service.eta7dHours, willExceed: service.willExceed7d)
+            }
+
+            // Usage history chart
+            if service.usageHistory.count >= 2 {
+                Divider()
+                UsageHistoryChart(history: service.usageHistory)
             }
 
             // Model breakdown
@@ -222,6 +238,8 @@ struct PopoverView: View {
 struct UsageBucketRow: View {
     let label: String
     let bucket: UsageBucket
+    var etaHours: Double? = nil
+    var willExceed: Bool = false
 
     private var pct: Double { (bucket.utilization ?? 0) / 100.0 }
 
@@ -245,11 +263,38 @@ struct UsageBucketRow: View {
             ProgressView(value: min(pct, 1.0))
                 .tint(barColor)
 
-            if let reset = bucket.resetsAtDate {
-                Text("Resets \(reset, style: .relative)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            HStack(spacing: 0) {
+                if let reset = bucket.resetsAtDate {
+                    Text("Resets \(reset, style: .relative)")
+                        .foregroundStyle(.tertiary)
+                }
+
+                if let eta = etaHours {
+                    if bucket.resetsAtDate != nil { Text(" · ").foregroundStyle(.tertiary) }
+                    Text(eta <= 0 ? "At limit" : "~\(Self.formatEta(eta)) to full")
+                        .foregroundStyle(willExceed ? .orange : .secondary)
+                }
             }
+            .font(.caption2)
+
+            if willExceed {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text("Will hit limit before reset")
+                }
+                .font(.caption2)
+                .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    static func formatEta(_ hours: Double) -> String {
+        if hours < 1 {
+            return "\(max(1, Int(round(hours * 60)))) min"
+        } else if hours < 24 {
+            return String(format: "%.1f hrs", hours)
+        } else {
+            return String(format: "%.1f days", hours / 24)
         }
     }
 }
@@ -279,6 +324,69 @@ struct ExtraUsageRow: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
+        }
+    }
+}
+
+// MARK: - Usage History Chart
+
+private struct ChartPoint: Identifiable {
+    let id: String
+    let date: Date
+    let pct: Double
+    let series: String
+}
+
+struct UsageHistoryChart: View {
+    let history: [UsageSnapshot]
+
+    private var chartData: [ChartPoint] {
+        history.flatMap { entry in
+            [
+                ChartPoint(id: "5h-\(entry.date.timeIntervalSince1970)", date: entry.date, pct: entry.pct5h * 100, series: "5h"),
+                ChartPoint(id: "7d-\(entry.date.timeIntervalSince1970)", date: entry.date, pct: entry.pct7d * 100, series: "7d"),
+            ]
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Past 6 Hours")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Chart(chartData) { point in
+                LineMark(
+                    x: .value("Time", point.date),
+                    y: .value("Usage", point.pct)
+                )
+                .foregroundStyle(by: .value("Bucket", point.series))
+                .interpolationMethod(.monotone)
+            }
+            .chartYScale(domain: 0...100)
+            .chartYAxis {
+                AxisMarks(values: [0, 25, 50, 75, 100]) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2]))
+                    AxisValueLabel {
+                        if let v = value.as(Int.self) {
+                            Text("\(v)%")
+                                .font(.caption2)
+                        }
+                    }
+                }
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 4)) { _ in
+                    AxisGridLine()
+                    AxisValueLabel(format: .dateTime.hour().minute())
+                }
+            }
+            .chartForegroundStyleScale([
+                "5h": Color.green,
+                "7d": Color.blue,
+            ])
+            .chartLegend(position: .top, alignment: .trailing)
+            .frame(height: 100)
         }
     }
 }

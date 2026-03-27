@@ -9,7 +9,7 @@ struct ClaudeUsageBarApp: App {
             PopoverView(service: service)
         } label: {
             Image(nsImage: service.isAuthenticated
-                ? renderMenuBarIcon(pct5h: service.pct5h, pct7d: service.pct7d)
+                ? renderMenuBarIcon(pct5h: service.pct5h, pct7d: service.pct7d, isPeakHours: service.isPeakHours)
                 : renderMenuBarIconUnauthenticated()
             )
             .task { service.startPolling() }
@@ -21,13 +21,13 @@ struct ClaudeUsageBarApp: App {
 // MARK: - Two-Row Compact Menu Bar Icon
 
 private let iconHeight: CGFloat = 20
-private let barW: CGFloat = 30
+private let barW: CGFloat = 44
 private let barH: CGFloat = 7
 private let rowGap: CGFloat = 2
 private let labelBarGap: CGFloat = 2
 private let barPctGap: CGFloat = 1.5
 
-private func renderMenuBarIcon(pct5h: Double, pct7d: Double) -> NSImage {
+private func renderMenuBarIcon(pct5h: Double, pct7d: Double, isPeakHours: Bool) -> NSImage {
     let labelFont = NSFont.monospacedDigitSystemFont(ofSize: 7.5, weight: .semibold)
     let pctFont = NSFont.monospacedDigitSystemFont(ofSize: 7, weight: .medium)
     let labelAttrs: [NSAttributedString.Key: Any] = [
@@ -46,7 +46,9 @@ private func renderMenuBarIcon(pct5h: Double, pct7d: Double) -> NSImage {
     ])
 
     let pctW = max(pct5Str.size().width, pct7Str.size().width)
-    let totalWidth = barW + barPctGap + pctW
+    let dotSize: CGFloat = 4
+    let dotGap: CGFloat = 3
+    let totalWidth = barW + barPctGap + pctW + dotGap + dotSize
 
     let size = NSSize(width: ceil(totalWidth), height: iconHeight)
 
@@ -56,6 +58,17 @@ private func renderMenuBarIcon(pct5h: Double, pct7d: Double) -> NSImage {
 
         drawRow(y: topRowY, pctW: pctW, pctLabel: pct5Str, pct: pct5h)
         drawRow(y: botRowY, pctW: pctW, pctLabel: pct7Str, pct: pct7d)
+
+        // Peak hours indicator dot
+        let dotX = barW + barPctGap + pctW + dotGap
+        let dotY = (iconHeight - dotSize) / 2
+        let dotRect = NSRect(x: dotX, y: dotY, width: dotSize, height: dotSize)
+        let dotPath = NSBezierPath(ovalIn: dotRect)
+        let dotColor = isPeakHours
+            ? NSColor(red: 1.0, green: 0.6, blue: 0.0, alpha: 1)
+            : NSColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1)
+        dotColor.setFill()
+        dotPath.fill()
 
         return true
     }
