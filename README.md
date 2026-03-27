@@ -1,5 +1,7 @@
 # Claude Usage Bar
 
+<img width="331" height="529" alt="Screenshot 2026-03-27 at 1 49 30 PM" src="https://github.com/user-attachments/assets/a3bb2172-b9ad-4d71-8cd6-84c46639cd7e" />
+
 A lightweight macOS menu bar app that shows your Claude API usage at a glance.
 
 Built from scratch as a Swift Package — no Xcode required, no code signing needed.
