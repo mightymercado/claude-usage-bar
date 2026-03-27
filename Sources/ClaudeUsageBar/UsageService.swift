@@ -348,10 +348,8 @@ class UsageService: ObservableObject {
     private func updatePeakHours() {
         var calendar = Calendar.current
         calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
-        let components = calendar.dateComponents([.hour, .weekday], from: Date())
-        let hour = components.hour ?? 0
-        let weekday = components.weekday ?? 1
-        isPeakHours = (2...6).contains(weekday) && (7..<17).contains(hour)
+        let hour = calendar.component(.hour, from: Date())
+        isPeakHours = (5..<11).contains(hour) // 5 AM – 11 AM PT daily
     }
 
     // MARK: - Usage History
