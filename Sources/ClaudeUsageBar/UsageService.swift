@@ -63,6 +63,7 @@ class UsageService: ObservableObject {
         self.isAuthenticated = credentialsStore.load() != nil
         updatePeakHours()
         usageHistory = Self.loadHistory()
+        previousSnapshot = usageHistory.last
     }
 
     // MARK: - Polling
