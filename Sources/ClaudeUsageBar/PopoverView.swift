@@ -159,12 +159,6 @@ struct PopoverView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 3))
 
                 Spacer()
-                if let email = service.accountEmail {
-                    Text(email)
-                        .font(fin.micro)
-                        .foregroundStyle(fin.dimText)
-                        .lineLimit(1)
-                }
             }
 
             Divider().opacity(0.3)
