@@ -18,8 +18,11 @@ class UsageService: ObservableObject {
     @Published private(set) var willExceed5h: Bool = false
     @Published private(set) var willExceed7d: Bool = false
     @Published private(set) var usageHistory: [UsageSnapshot] = []
+    @Published private(set) var tokenStats: TokenStats?
+    @Published private(set) var allTimeTokenStats: TokenStats?
 
     private var timer: Timer?
+    private let tokenAccumulator = TokenAccumulator()
     private let session: URLSession
     private let credentialsStore: StoredCredentialsStore
     private var currentInterval: TimeInterval
@@ -70,6 +73,7 @@ class UsageService: ObservableObject {
 
     func startPolling() {
         guard isAuthenticated else { return }
+        Task { await scanTokens() }
         Task {
             await fetchUsage()
             if accountEmail == nil { await fetchProfile() }
@@ -253,6 +257,7 @@ class UsageService: ObservableObject {
             updateForecast()
             updatePeakHours()
             recordHistory()
+            await scanTokens()
             if currentInterval != baseInterval {
                 currentInterval = baseInterval
                 scheduleTimer()
@@ -287,6 +292,14 @@ class UsageService: ObservableObject {
         if let email = account["emailAddress"] as? String, !email.isEmpty { return email }
         if let name = account["displayName"] as? String, !name.isEmpty { return name }
         return nil
+    }
+
+    // MARK: - Token Accumulation
+
+    func scanTokens() async {
+        let (ytd, allTime) = await tokenAccumulator.scan()
+        tokenStats = ytd
+        allTimeTokenStats = allTime
     }
 
     // MARK: - Forecast & Peak Hours
