@@ -1,6 +1,7 @@
 # Claude Usage Bar
 
-<img width="331" height="529" alt="Screenshot 2026-03-27 at 1 49 30 PM" src="https://github.com/user-attachments/assets/a3bb2172-b9ad-4d71-8cd6-84c46639cd7e" />
+<img width="382" height="552" alt="Screenshot 2026-04-04 at 12 27 49 AM" src="https://github.com/user-attachments/assets/369400aa-1794-4372-ba90-36897ae64825" />
+
 
 A lightweight macOS menu bar app that shows your Claude API usage at a glance.
 
